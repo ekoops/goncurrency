@@ -9,10 +9,11 @@ import (
 )
 
 func main() {
-	testBasePipeline()
-	testFanOutFanIn()
-	testUnlocking()
-	testTee()
+	//testBasePipeline()
+	//testFanOutFanIn()
+	//testUnlocking()
+	//testTee()
+	testBridge()
 }
 
 func testBasePipeline() {
@@ -66,6 +67,7 @@ func testUnlocking() {
 func testTee() {
 	done := make(chan struct{})
 	defer close(done)
+
 	fmt.Println("Starting tee test...")
 	randGen := func() int { return rand.Intn(1000) }
 	out1, out2 := pipeline.Tee(done, pipeline.Take(done, pipeline.RepeatFn(done, randGen), 10))
@@ -73,4 +75,29 @@ func testTee() {
 		fmt.Printf("out1: %d, out2: %d\n", v, <-out2)
 	}
 	fmt.Println("Tee test finished")
+}
+
+func testBridge() {
+	genVals := func(done <-chan struct{}) <-chan (<-chan int) {
+		valStreams := make(chan (<-chan int))
+		go func() {
+			defer close(valStreams)
+			for i := 0; i < 10; i++ {
+				stream := make(chan int, 1)
+				stream <- i
+				close(stream)
+				valStreams <- stream
+			}
+		}()
+		return valStreams
+	}
+
+	done := make(chan struct{})
+	defer close(done)
+
+	fmt.Println("Starting bridge test...")
+	for v := range pipeline.Bridge(done, genVals(done)) {
+		fmt.Println(v)
+	}
+	fmt.Println("Bridge test finished")
 }

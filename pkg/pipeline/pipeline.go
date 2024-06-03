@@ -160,3 +160,30 @@ func Tee(done <-chan struct{}, inputStream <-chan int) (<-chan int, <-chan int) 
 	}()
 	return outputStream1, outputStream2
 }
+
+func Bridge(done <-chan struct{}, inputStreams <-chan (<-chan int)) <-chan int {
+	outputStream := make(chan int)
+	go func() {
+		defer close(outputStream)
+		for {
+			var stream <-chan int
+			select {
+			case <-done:
+				return
+			case inputStream, ok := <-inputStreams:
+				if !ok {
+					return
+				}
+				stream = inputStream
+			}
+			for v := range OrDone(done, stream) {
+				select {
+				case <-done:
+					return
+				case outputStream <- v:
+				}
+			}
+		}
+	}()
+	return outputStream
+}
