@@ -22,6 +22,21 @@ func Repeat(done <-chan struct{}, integers ...int) <-chan int {
 	return repeatStream
 }
 
+func RepeatFn(done <-chan struct{}, fn func() int) <-chan int {
+	repeatStream := make(chan int)
+	go func() {
+		defer close(repeatStream)
+		for {
+			select {
+			case <-done:
+				return
+			case repeatStream <- fn():
+			}
+		}
+	}()
+	return repeatStream
+}
+
 func Take(done <-chan struct{}, inputStream <-chan int, n int) <-chan int {
 	takeStream := make(chan int)
 	go func() {
@@ -121,4 +136,27 @@ func OrDone(done <-chan struct{}, inputStream <-chan int) <-chan int {
 		}
 	}()
 	return outputStream
+}
+
+func Tee(done <-chan struct{}, inputStream <-chan int) (<-chan int, <-chan int) {
+	outputStream1 := make(chan int)
+	outputStream2 := make(chan int)
+	go func() {
+		defer close(outputStream1)
+		defer close(outputStream2)
+		for v := range OrDone(done, inputStream) {
+			out1, out2 := outputStream1, outputStream2
+			for i := 0; i < 2; i++ {
+				select {
+				case <-done:
+					return
+				case out1 <- v:
+					out1 = nil
+				case out2 <- v:
+					out2 = nil
+				}
+			}
+		}
+	}()
+	return outputStream1, outputStream2
 }
