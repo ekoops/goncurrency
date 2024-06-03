@@ -99,3 +99,26 @@ func FanInUnordered(done <-chan struct{}, inputStreams ...<-chan int) <-chan int
 	}()
 	return fanInStream
 }
+
+func OrDone(done <-chan struct{}, inputStream <-chan int) <-chan int {
+	outputStream := make(chan int)
+	go func() {
+		defer close(outputStream)
+		for {
+			select {
+			case <-done:
+				return
+			case v, ok := <-inputStream:
+				if !ok {
+					return
+				}
+				select {
+				case <-done:
+					return
+				case outputStream <- v:
+				}
+			}
+		}
+	}()
+	return outputStream
+}

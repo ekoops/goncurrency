@@ -7,36 +7,13 @@ import (
 	"time"
 )
 
-func orDone(done <-chan struct{}, inputStream <-chan int) <-chan int {
-	outputStream := make(chan int)
-	go func() {
-		defer close(outputStream)
-		for {
-			select {
-			case <-done:
-				return
-			case v, ok := <-inputStream:
-				if !ok {
-					return
-				}
-				select {
-				case <-done:
-					return
-				case outputStream <- v:
-				}
-			}
-		}
-	}()
-	return outputStream
-}
-
 func unlockingTest() {
 	done := make(chan struct{})
 	go func() {
 		time.Sleep(1 * time.Second)
 		close(done)
 	}()
-	for range orDone(done, nil) {
+	for range pipeline.OrDone(done, nil) {
 		fmt.Println("Unreachable code")
 	}
 }
